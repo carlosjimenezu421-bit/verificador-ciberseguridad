@@ -13,6 +13,7 @@ from datetime import datetime
 
 # --- CONFIGURACIÓN DE PÁGINA (Diseño Panorámico) ---
 st.set_page_config(page_title="SafeShield Colombia", page_icon="🛡️", layout="wide")
+st.image("https://images.unsplash.com/photo-1550751827-4bd374c3f58b?ixlib=rb-4.0.3&auto=format&fit=crop&w=1200&q=80", use_container_width=True)
 
 # --- DISEÑO VISUAL (CSS Personalizado para colores frescos) ---
 st.markdown("""
@@ -91,6 +92,7 @@ with tab1:
     col1, col2 = st.columns([1, 1])
     with col1:
         st.subheader("Analizador de Mensajes")
+        st.image("https://images.unsplash.com/photo-1563013544-824ae1b704d3?ixlib=rb-4.0.3&auto=format&fit=crop&w=600&q=80", width=250)
         mensaje = st.text_area("Pega el texto aquí (SMS, WhatsApp, Correo):", height=150)
         btn_texto = st.button("Analizar Mensaje 🔍", use_container_width=True)
     with col2:
