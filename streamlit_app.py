@@ -1,3 +1,4 @@
+from urllib.parse import urlparse
 import streamlit as st
 import re
 import os
@@ -99,24 +100,82 @@ with tab1:
         if btn_texto and mensaje:
             puntaje, alertas = analizar_texto_emocional(mensaje)
             mostrar_resultado_visual(puntaje, alertas, "Análisis de Texto", mensaje)
-
-# --- PESTAÑA 2: ENLACES ---
+# --- PESTAÑA 2: ENLACES, NOTICIAS Y REDES ---
 with tab2:
     col1, col2 = st.columns([1, 1])
     with col1:
-        st.subheader("Escaner de Links")
-        url = st.text_input("Ingresa el enlace sospechoso:")
+        st.subheader("Escáner de Noticias y Redes (Colombia)")
+        url = st.text_input("Ingresa el enlace (Noticia, Perfil de red social o Web):").strip()
         btn_url = st.button("Verificar Enlace 🌐", use_container_width=True)
     with col2:
         if btn_url and url:
-            if "bit.ly" in url or "t.co" in url:
-                st.markdown('<div class="tarjeta-riesgo-medio"><h2>🟡 ENLACE OCULTO</h2><p>Usa acortadores para esconder su destino.</p></div>', unsafe_allow_html=True)
-                registrar_amenaza("Análisis de URL", "RIESGO MODERADO", "Uso de acortador de URL", url)
+            # Desarmar el enlace para analizarlo
+            dominio = urlparse(url).netloc.lower()
+            ruta = urlparse(url).path.lower()
+            
+            # Base de datos de Medios Colombianos y sus usuarios oficiales de redes
+            medios_colombia = {
+                "eltiempo.com": "eltiempo",
+                "elespectador.com": "elespectador",
+                "semana.com": "revistasemana",
+                "noticiascaracol.com": "noticiascaracol",
+                "caracol.com.co": "caracolradio",
+                "canalrcn.com": "canalrcn",
+                "noticiasrcn.com": "noticiasrcn",
+                "rcnradio.com": "rcnradio",
+                "wradio.com.co": "wradioco",
+                "bluradio.com": "bluradioco",
+                "larepublica.co": "larepublica_co",
+                "portafolio.co": "portafolioco",
+                "elcolombiano.com": "elcolombiano", # Medellín
+                "elpais.com.co": "elpaiscali", # Cali
+                "elheraldo.co": "elheraldoco", # Barranquilla
+                "vanguardia.com": "vanguardiacom", # Bucaramanga
+                "pulzo.com": "pulzo",
+                "infobae.com": "infobaecolombia"
+            }
+
+            redes_sociales = ["instagram.com", "facebook.com", "twitter.com", "x.com", "tiktok.com", "youtube.com", "kwai.com"]
+            palabras_suplantacion = ["soporte", "ayuda", "oficial", "admin", "banco", "servicio", "premio", "reembolso", "regalo", "urgente"]
+
+            # 1. ¿Es un enlace acortado? (Alto riesgo de ocultar virus o Fake News)
+            if "bit.ly" in url or "t.co" in url or "tinyurl" in url or "is.gd" in url:
+                st.markdown('<div class="tarjeta-riesgo-medio"><h2>🟡 ENLACE OCULTO</h2><p>Usa un acortador para esconder su destino real. Mucho cuidado antes de abrirlo.</p></div>', unsafe_allow_html=True)
+                registrar_amenaza("Verificación de Enlace", "RIESGO MODERADO", "Uso de acortador", url)
+            
+            # 2. ¿Es una Red Social?
+            elif any(red in dominio for red in redes_sociales):
+                es_medio_oficial = False
+                nombre_del_medio = ""
+                
+                # Verificamos si el usuario de la red social coincide con nuestros medios oficiales
+                for medio, usuario in medios_colombia.items():
+                    if f"/{usuario}" in ruta or f"@{usuario}" in ruta:
+                        es_medio_oficial = True
+                        nombre_del_medio = medio
+                        break
+                
+                if es_medio_oficial:
+                    st.markdown(f'<div class="tarjeta-seguro"><h2>✅ CUENTA DE MEDIO OFICIAL</h2><p>Este perfil coincide con las redes sociales oficiales de <b>{nombre_del_medio}</b>. Sin embargo, confirma siempre que tenga la insignia de verificación.</p></div>', unsafe_allow_html=True)
+                elif any(palabra in ruta for palabra in palabras_suplantacion):
+                    st.markdown('<div class="tarjeta-riesgo-alto"><h2>⚠️ POSIBLE CUENTA FALSA / PHISHING</h2><p>El perfil usa palabras típicas de suplantadores para engañarte. ¡No entregues tus datos!</p></div>', unsafe_allow_html=True)
+                    registrar_amenaza("Verificación de Red Social", "ALTO RIESGO", "Patrón de suplantación", url)
+                else:
+                    st.markdown('<div class="tarjeta-riesgo-medio"><h2>ℹ️ PERFIL ESTÁNDAR / NO VERIFICADO</h2><p>Es un enlace de red social normal. No pertenece a un medio oficial reconocido de Colombia. Verifica la fuente con precaución.</p></div>', unsafe_allow_html=True)
+
+            # 3. ¿Es la página web de una Noticia Oficial?
+            elif any(medio in dominio for medio in medios_colombia.keys()):
+                st.markdown('<div class="tarjeta-seguro"><h2>📰 MEDIO CONFIABLE COLOMBIANO</h2><p>El enlace pertenece a la página web de un medio de comunicación nacional o regional reconocido.</p></div>', unsafe_allow_html=True)
+            
+            # 4. ¿No tiene seguridad?
             elif url.startswith("http://"):
-                st.markdown('<div class="tarjeta-riesgo-alto"><h2>🔴 SITIO INSEGURO</h2><p>Conexión no cifrada (HTTP). No ingrese datos.</p></div>', unsafe_allow_html=True)
-                registrar_amenaza("Análisis de URL", "ALTO RIESGO", "Falta de certificado SSL (HTTP)", url)
+                st.markdown('<div class="tarjeta-riesgo-alto"><h2>🔴 SITIO INSEGURO</h2><p>Conexión no cifrada (HTTP). Un portal de noticias real jamás usaría esto hoy en día. Tus datos corren peligro.</p></div>', unsafe_allow_html=True)
+                registrar_amenaza("Verificación de Enlace", "ALTO RIESGO", "Falta SSL (HTTP)", url)
+            
+            # 5. Blogs o páginas desconocidas (Posible Fake News)
             else:
-                st.markdown('<div class="tarjeta-seguro"><h2>✅ ENLACE CIFRADO</h2><p>Posee certificado de seguridad HTTPS.</p></div>', unsafe_allow_html=True)
+                st.markdown('<div class="tarjeta-riesgo-medio"><h2>🟡 FUENTE NO RECONOCIDA</h2><p>Este sitio web no está en nuestra lista de medios oficiales de Colombia. Podría tratarse de desinformación, una cadena falsa o un blog no verificado. Lee con espíritu crítico.</p></div>', unsafe_allow_html=True)
+                registrar_amenaza("Verificación de Enlace", "RIESGO MODERADO", "Fuente de noticias no verificada", url)
 
 # --- PESTAÑA 3: ARCHIVOS ---
 with tab3:
